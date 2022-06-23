@@ -259,53 +259,58 @@ func main() {
 		}
 	}
 
-	mux := http.NewServeMux()
-	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		found := len(cfg.allowPaths) == 0
-		for _, pathAllowed := range cfg.allowPaths {
-			found, err = path.Match(pathAllowed, req.URL.Path)
-			if err != nil {
-				http.Error(
-					w,
-					http.StatusText(http.StatusInternalServerError),
-					http.StatusInternalServerError,
-				)
-				return
+	withAllowPaths := func(h http.Handler) http.HandlerFunc {
+		return func(w http.ResponseWriter, req *http.Request) {
+			for _, pathAllowed := range cfg.allowPaths {
+				found, err := path.Match(pathAllowed, req.URL.Path)
+				if err != nil {
+					http.Error(
+						w,
+						http.StatusText(http.StatusInternalServerError),
+						http.StatusInternalServerError,
+					)
+
+					return
+				}
+
+				if found {
+					h.ServeHTTP(w, req)
+					return
+				}
 			}
-			if found {
-				break
-			}
-		}
-		if !found {
+
 			http.NotFound(w, req)
-			return
 		}
+	}
 
-		ignorePathFound := false
-		for _, pathIgnored := range cfg.ignorePaths {
-			ignorePathFound, err = path.Match(pathIgnored, req.URL.Path)
-			if err != nil {
-				http.Error(
-					w,
-					http.StatusText(http.StatusInternalServerError),
-					http.StatusInternalServerError,
-				)
-				return
+	withIgnorePaths := func(handlerChain, upstream http.Handler) http.HandlerFunc {
+		return func(w http.ResponseWriter, req *http.Request) {
+			for _, pathIgnored := range cfg.ignorePaths {
+				ignorePathFound, err := path.Match(pathIgnored, req.URL.Path)
+				if err != nil {
+					http.Error(
+						w,
+						http.StatusText(http.StatusInternalServerError),
+						http.StatusInternalServerError,
+					)
+					return
+				}
+
+				if ignorePathFound {
+					upstream.ServeHTTP(w, req)
+					return
+				}
 			}
-			if ignorePathFound {
-				break
-			}
+
+			handlerChain.ServeHTTP(w, req)
 		}
+	}
 
-		if !ignorePathFound {
-			ok := auth.Handle(w, req)
-			if !ok {
-				return
-			}
-		}
+	handler := withIgnorePaths(auth.WithAuth(proxy), proxy)
+	handler = withAllowPaths(handler)
 
-		proxy.ServeHTTP(w, req)
-	}))
+	mux := http.NewServeMux()
+	mux.Handle("/", handler)
 
 	var gr run.Group
 	{
