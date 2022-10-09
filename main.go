@@ -47,6 +47,7 @@ import (
 
 	"github.com/brancz/kube-rbac-proxy/pkg/authn"
 	"github.com/brancz/kube-rbac-proxy/pkg/authz"
+	"github.com/brancz/kube-rbac-proxy/pkg/filters"
 	"github.com/brancz/kube-rbac-proxy/pkg/server"
 	rbac_proxy_tls "github.com/brancz/kube-rbac-proxy/pkg/tls"
 )
@@ -286,8 +287,8 @@ For more information, please go to https://github.com/brancz/kube-rbac-proxy/iss
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/", withAllowPaths(
-		withIgnorePaths(
+	mux.Handle("/", filters.WithAllowPaths(
+		filters.WithIgnorePaths(
 			proxy,
 			server.WithAuthentication(
 				server.WithAuthorization(
@@ -435,58 +436,4 @@ func initKubeConfig(kcLocation string) *rest.Config {
 	}
 
 	return kubeConfig
-}
-
-func withAllowPaths(handler http.Handler, allowPaths []string) http.Handler {
-	if len(allowPaths) == 0 {
-		return handler
-	}
-
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		for _, pathAllowed := range allowPaths {
-			found, err := path.Match(pathAllowed, req.URL.Path)
-			if err != nil {
-				http.Error(
-					w,
-					http.StatusText(http.StatusInternalServerError),
-					http.StatusInternalServerError,
-				)
-				return
-			}
-
-			if found {
-				handler.ServeHTTP(w, req)
-				return
-			}
-		}
-
-		http.NotFound(w, req)
-	})
-}
-
-func withIgnorePaths(ignored http.Handler, handler http.Handler, ignorePaths []string) http.Handler {
-	if len(ignorePaths) == 0 {
-		return handler
-	}
-
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		for _, pathIgnored := range ignorePaths {
-			ignorePathFound, err := path.Match(pathIgnored, req.URL.Path)
-			if err != nil {
-				http.Error(
-					w,
-					http.StatusText(http.StatusInternalServerError),
-					http.StatusInternalServerError,
-				)
-				return
-			}
-
-			if ignorePathFound {
-				ignored.ServeHTTP(w, req)
-				return
-			}
-		}
-
-		handler.ServeHTTP(w, req)
-	})
 }
