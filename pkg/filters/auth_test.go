@@ -75,7 +75,7 @@ func TestProxyWithOIDCSupport(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			filters.WithAuthentication(
-				server.WithAuthorization(
+				filters.WithAuthorization(
 					filters.WithAuthHeaders(
 						http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
 						cfg.Authentication.Header,
