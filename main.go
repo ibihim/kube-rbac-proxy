@@ -290,9 +290,9 @@ For more information, please go to https://github.com/brancz/kube-rbac-proxy/iss
 	mux.Handle("/", filters.WithAllowPaths(
 		filters.WithIgnorePaths(
 			proxy,
-			server.WithAuthentication(
+			filters.WithAuthentication(
 				server.WithAuthorization(
-					server.WithAuthHeaders(proxy, cfg.auth.Authentication.Header),
+					filters.WithAuthHeaders(proxy, cfg.auth.Authentication.Header),
 					authorizer,
 					cfg.auth.Authorization,
 				),
