@@ -284,23 +284,14 @@ For more information, please go to https://github.com/brancz/kube-rbac-proxy/iss
 		}
 	}
 
+	handler := filters.WithAuthHeaders(proxy, cfg.authentication.Header)
+	handler = filters.WithAuthorization(handler, authorizer, cfg.authorization)
+	handler = filters.WithAuthentication(handler, authenticator, cfg.authentication.Token.Audiences)
+	handler = filters.WithIgnorePaths(proxy, handler, cfg.ignorePaths)
+	handler = filters.WithAllowPaths(handler, cfg.allowPaths)
+
 	mux := http.NewServeMux()
-	mux.Handle("/", filters.WithAllowPaths(
-		filters.WithIgnorePaths(
-			proxy,
-			filters.WithAuthentication(
-				filters.WithAuthorization(
-					filters.WithAuthHeaders(proxy, cfg.authentication.Header),
-					authorizer,
-					cfg.authorization,
-				),
-				authenticator,
-				cfg.authentication.Token.Audiences,
-			),
-			cfg.ignorePaths,
-		),
-		cfg.allowPaths,
-	))
+	mux.Handle("/", handler)
 
 	var gr run.Group
 	{
