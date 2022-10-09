@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/brancz/kube-rbac-proxy/pkg/authz"
-	"github.com/brancz/kube-rbac-proxy/pkg/server
 
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	"k8s.io/apiserver/pkg/endpoints/request"
@@ -17,7 +16,7 @@ func WithAuthorization(
 	authz authorizer.Authorizer,
 	cfg *authz.Config,
 ) http.Handler {
-	authzAttrGetter := server.NewKubeRBACProxyAuthorizerAttributesGetter(cfg).GetRequestAttributes
+	authzAttrGetter := cfg.GetRequestAttributes
 
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		u, ok := request.UserFrom(req.Context())

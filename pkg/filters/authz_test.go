@@ -1,20 +1,4 @@
-/*
-Copyright 2017 Frederic Branczyk All rights reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-package server
+package filters
 
 import (
 	"net/http"
@@ -205,8 +189,7 @@ func TestGeneratingAuthorizerAttributes(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.desc, func(t *testing.T) {
 			t.Log(c.req.URL.Query())
-			n := krpAuthorizerAttributesGetter{authzConfig: c.authzCfg}
-			res := n.GetRequestAttributes(nil, c.req)
+			res := c.authzCfg.GetRequestAttributes(nil, c.req)
 			if !cmp.Equal(res, c.expected) {
 				t.Errorf("Generated authorizer attributes are not correct. Expected %v, recieved %v", c.expected, res)
 			}

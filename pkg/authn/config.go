@@ -30,8 +30,8 @@ type AuthnHeaderConfig struct {
 	GroupSeparator string
 }
 
-// AuthnConfig holds all configurations related to authentication options
-type AuthnConfig struct {
+// Config holds all configurations related to authentication options
+type Config struct {
 	X509   *X509Config
 	Header *AuthnHeaderConfig
 	OIDC   *OIDCConfig

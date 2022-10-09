@@ -10,7 +10,6 @@ import (
 	"github.com/brancz/kube-rbac-proxy/pkg/authn"
 	"github.com/brancz/kube-rbac-proxy/pkg/authz"
 	"github.com/brancz/kube-rbac-proxy/pkg/filters"
-	"github.com/brancz/kube-rbac-proxy/pkg/server"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/authentication/request/bearertoken"
 	"k8s.io/apiserver/pkg/authentication/user"
@@ -18,18 +17,16 @@ import (
 )
 
 func TestProxyWithOIDCSupport(t *testing.T) {
-	cfg := server.Config{
-		Authentication: &authn.AuthnConfig{
-			OIDC: &authn.OIDCConfig{},
-			Header: &authn.AuthnHeaderConfig{
-				Enabled:         true,
-				UserFieldName:   "user",
-				GroupsFieldName: "groups",
-			},
-			Token: &authn.TokenConfig{},
+	authnCfg := &authn.Config{
+		OIDC: &authn.OIDCConfig{},
+		Header: &authn.AuthnHeaderConfig{
+			Enabled:         true,
+			UserFieldName:   "user",
+			GroupsFieldName: "groups",
 		},
-		Authorization: &authz.Config{},
+		Token: &authn.TokenConfig{},
 	}
+	authzCfg := &authz.Config{}
 
 	fakeUser := user.DefaultInfo{Name: "Foo Bar", Groups: []string{"foo-bars"}}
 	authenticator := fakeOIDCAuthenticator(t, &fakeUser)
@@ -78,13 +75,13 @@ func TestProxyWithOIDCSupport(t *testing.T) {
 				filters.WithAuthorization(
 					filters.WithAuthHeaders(
 						http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}),
-						cfg.Authentication.Header,
+						authnCfg.Header,
 					),
 					v.authorizer,
-					cfg.Authorization,
+					authzCfg,
 				),
 				authenticator,
-				cfg.Authentication.Token.Audiences,
+				authnCfg.Token.Audiences,
 			).ServeHTTP(w, v.req)
 
 			resp := w.Result()
@@ -93,12 +90,12 @@ func TestProxyWithOIDCSupport(t *testing.T) {
 			}
 
 			if v.verifyUser {
-				user := v.req.Header.Get(cfg.Authentication.Header.UserFieldName)
-				groups := v.req.Header.Get(cfg.Authentication.Header.GroupsFieldName)
+				user := v.req.Header.Get(authnCfg.Header.UserFieldName)
+				groups := v.req.Header.Get(authnCfg.Header.GroupsFieldName)
 				if user != fakeUser.GetName() {
 					t.Errorf("User in the response header does not match authenticated user. Expected : %s, received : %s ", fakeUser.GetName(), user)
 				}
-				if groups != strings.Join(fakeUser.GetGroups(), cfg.Authentication.Header.GroupSeparator) {
+				if groups != strings.Join(fakeUser.GetGroups(), authnCfg.Header.GroupSeparator) {
 					t.Errorf("Groupsr in the response header does not match authenticated user groups. Expected : %s, received : %s ", fakeUser.GetName(), groups)
 				}
 			}

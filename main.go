@@ -48,7 +48,6 @@ import (
 	"github.com/brancz/kube-rbac-proxy/pkg/authn"
 	"github.com/brancz/kube-rbac-proxy/pkg/authz"
 	"github.com/brancz/kube-rbac-proxy/pkg/filters"
-	"github.com/brancz/kube-rbac-proxy/pkg/server"
 	rbac_proxy_tls "github.com/brancz/kube-rbac-proxy/pkg/tls"
 )
 
@@ -58,7 +57,8 @@ type config struct {
 	upstream              string
 	upstreamForceH2C      bool
 	upstreamCAFile        string
-	auth                  server.Config
+	authorization         *authz.Config
+	authentication        *authn.Config
 	tls                   tlsConfig
 	kubeconfigLocation    string
 	allowPaths            []string
@@ -79,15 +79,13 @@ type configfile struct {
 
 func main() {
 	cfg := config{
-		auth: server.Config{
-			Authentication: &authn.AuthnConfig{
-				X509:   &authn.X509Config{},
-				Header: &authn.AuthnHeaderConfig{},
-				OIDC:   &authn.OIDCConfig{},
-				Token:  &authn.TokenConfig{},
-			},
-			Authorization: &authz.Config{},
+		authentication: &authn.Config{
+			X509:   &authn.X509Config{},
+			Header: &authn.AuthnHeaderConfig{},
+			OIDC:   &authn.OIDCConfig{},
+			Token:  &authn.TokenConfig{},
 		},
+		authorization: &authz.Config{},
 	}
 	configFileName := ""
 
@@ -116,21 +114,21 @@ func main() {
 	flagset.DurationVar(&cfg.tls.reloadInterval, "tls-reload-interval", time.Minute, "The interval at which to watch for TLS certificate changes, by default set to 1 minute.")
 
 	// Auth flags
-	flagset.StringVar(&cfg.auth.Authentication.X509.ClientCAFile, "client-ca-file", "", "If set, any request presenting a client certificate signed by one of the authorities in the client-ca-file is authenticated with an identity corresponding to the CommonName of the client certificate.")
-	flagset.BoolVar(&cfg.auth.Authentication.Header.Enabled, "auth-header-fields-enabled", false, "When set to true, kube-rbac-proxy adds auth-related fields to the headers of http requests sent to the upstream")
-	flagset.StringVar(&cfg.auth.Authentication.Header.UserFieldName, "auth-header-user-field-name", "x-remote-user", "The name of the field inside a http(2) request header to tell the upstream server about the user's name")
-	flagset.StringVar(&cfg.auth.Authentication.Header.GroupsFieldName, "auth-header-groups-field-name", "x-remote-groups", "The name of the field inside a http(2) request header to tell the upstream server about the user's groups")
-	flagset.StringVar(&cfg.auth.Authentication.Header.GroupSeparator, "auth-header-groups-field-separator", "|", "The separator string used for concatenating multiple group names in a groups header field's value")
-	flagset.StringSliceVar(&cfg.auth.Authentication.Token.Audiences, "auth-token-audiences", []string{}, "Comma-separated list of token audiences to accept. By default a token does not have to have any specific audience. It is recommended to set a specific audience.")
+	flagset.StringVar(&cfg.authentication.X509.ClientCAFile, "client-ca-file", "", "If set, any request presenting a client certificate signed by one of the authorities in the client-ca-file is authenticated with an identity corresponding to the CommonName of the client certificate.")
+	flagset.BoolVar(&cfg.authentication.Header.Enabled, "auth-header-fields-enabled", false, "When set to true, kube-rbac-proxy adds auth-related fields to the headers of http requests sent to the upstream")
+	flagset.StringVar(&cfg.authentication.Header.UserFieldName, "auth-header-user-field-name", "x-remote-user", "The name of the field inside a http(2) request header to tell the upstream server about the user's name")
+	flagset.StringVar(&cfg.authentication.Header.GroupsFieldName, "auth-header-groups-field-name", "x-remote-groups", "The name of the field inside a http(2) request header to tell the upstream server about the user's groups")
+	flagset.StringVar(&cfg.authentication.Header.GroupSeparator, "auth-header-groups-field-separator", "|", "The separator string used for concatenating multiple group names in a groups header field's value")
+	flagset.StringSliceVar(&cfg.authentication.Token.Audiences, "auth-token-audiences", []string{}, "Comma-separated list of token audiences to accept. By default a token does not have to have any specific audience. It is recommended to set a specific audience.")
 
 	//Authn OIDC flags
-	flagset.StringVar(&cfg.auth.Authentication.OIDC.IssuerURL, "oidc-issuer", "", "The URL of the OpenID issuer, only HTTPS scheme will be accepted. If set, it will be used to verify the OIDC JSON Web Token (JWT).")
-	flagset.StringVar(&cfg.auth.Authentication.OIDC.ClientID, "oidc-clientID", "", "The client ID for the OpenID Connect client, must be set if oidc-issuer-url is set.")
-	flagset.StringVar(&cfg.auth.Authentication.OIDC.GroupsClaim, "oidc-groups-claim", "groups", "Identifier of groups in JWT claim, by default set to 'groups'")
-	flagset.StringVar(&cfg.auth.Authentication.OIDC.UsernameClaim, "oidc-username-claim", "email", "Identifier of the user in JWT claim, by default set to 'email'")
-	flagset.StringVar(&cfg.auth.Authentication.OIDC.GroupsPrefix, "oidc-groups-prefix", "", "If provided, all groups will be prefixed with this value to prevent conflicts with other authentication strategies.")
-	flagset.StringArrayVar(&cfg.auth.Authentication.OIDC.SupportedSigningAlgs, "oidc-sign-alg", []string{"RS256"}, "Supported signing algorithms, default RS256")
-	flagset.StringVar(&cfg.auth.Authentication.OIDC.CAFile, "oidc-ca-file", "", "If set, the OpenID server's certificate will be verified by one of the authorities in the oidc-ca-file, otherwise the host's root CA set will be used.")
+	flagset.StringVar(&cfg.authentication.OIDC.IssuerURL, "oidc-issuer", "", "The URL of the OpenID issuer, only HTTPS scheme will be accepted. If set, it will be used to verify the OIDC JSON Web Token (JWT).")
+	flagset.StringVar(&cfg.authentication.OIDC.ClientID, "oidc-clientID", "", "The client ID for the OpenID Connect client, must be set if oidc-issuer-url is set.")
+	flagset.StringVar(&cfg.authentication.OIDC.GroupsClaim, "oidc-groups-claim", "groups", "Identifier of groups in JWT claim, by default set to 'groups'")
+	flagset.StringVar(&cfg.authentication.OIDC.UsernameClaim, "oidc-username-claim", "email", "Identifier of the user in JWT claim, by default set to 'email'")
+	flagset.StringVar(&cfg.authentication.OIDC.GroupsPrefix, "oidc-groups-prefix", "", "If provided, all groups will be prefixed with this value to prevent conflicts with other authentication strategies.")
+	flagset.StringArrayVar(&cfg.authentication.OIDC.SupportedSigningAlgs, "oidc-sign-alg", []string{"RS256"}, "Supported signing algorithms, default RS256")
+	flagset.StringVar(&cfg.authentication.OIDC.CAFile, "oidc-ca-file", "", "If set, the OpenID server's certificate will be verified by one of the authorities in the oidc-ca-file, otherwise the host's root CA set will be used.")
 
 	//Kubeconfig flag
 	flagset.StringVar(&cfg.kubeconfigLocation, "kubeconfig", "", "Path to a kubeconfig file, specifying how to connect to the API server. If unset, in-cluster configuration will be used")
@@ -193,7 +191,7 @@ For more information, please go to https://github.com/brancz/kube-rbac-proxy/iss
 			klog.Fatalf("Failed to parse config file content: %v", err)
 		}
 
-		cfg.auth.Authorization = configfile.AuthorizationConfig
+		cfg.authorization = configfile.AuthorizationConfig
 	}
 
 	kubeClient, err := kubernetes.NewForConfig(kcfg)
@@ -206,8 +204,8 @@ For more information, please go to https://github.com/brancz/kube-rbac-proxy/iss
 	defer cancel()
 
 	// If OIDC configuration provided, use oidc authenticator
-	if cfg.auth.Authentication.OIDC.IssuerURL != "" {
-		oidcAuthenticator, err := authn.NewOIDCAuthenticator(cfg.auth.Authentication.OIDC)
+	if cfg.authentication.OIDC.IssuerURL != "" {
+		oidcAuthenticator, err := authn.NewOIDCAuthenticator(cfg.authentication.OIDC)
 		if err != nil {
 			klog.Fatalf("Failed to instantiate OIDC authenticator: %v", err)
 		}
@@ -216,10 +214,10 @@ For more information, please go to https://github.com/brancz/kube-rbac-proxy/iss
 		authenticator = oidcAuthenticator
 	} else {
 		//Use Delegating authenticator
-		klog.Infof("Valid token audiences: %s", strings.Join(cfg.auth.Authentication.Token.Audiences, ", "))
+		klog.Infof("Valid token audiences: %s", strings.Join(cfg.authentication.Token.Audiences, ", "))
 
 		tokenClient := kubeClient.AuthenticationV1()
-		delegatingAuthenticator, err := authn.NewDelegatingAuthenticator(tokenClient, cfg.auth.Authentication)
+		delegatingAuthenticator, err := authn.NewDelegatingAuthenticator(tokenClient, cfg.authentication)
 		if err != nil {
 			klog.Fatalf("Failed to instantiate delegating authenticator: %v", err)
 		}
@@ -235,7 +233,7 @@ For more information, please go to https://github.com/brancz/kube-rbac-proxy/iss
 		klog.Fatalf("Failed to create sar authorizer: %v", err)
 	}
 
-	staticAuthorizer, err := authz.NewStaticAuthorizer(cfg.auth.Authorization.Static)
+	staticAuthorizer, err := authz.NewStaticAuthorizer(cfg.authorization.Static)
 	if err != nil {
 		klog.Fatalf("Failed to create static authorizer: %v", err)
 	}
@@ -291,13 +289,13 @@ For more information, please go to https://github.com/brancz/kube-rbac-proxy/iss
 		filters.WithIgnorePaths(
 			proxy,
 			filters.WithAuthentication(
-				server.WithAuthorization(
-					filters.WithAuthHeaders(proxy, cfg.auth.Authentication.Header),
+				filters.WithAuthorization(
+					filters.WithAuthHeaders(proxy, cfg.authentication.Header),
 					authorizer,
-					cfg.auth.Authorization,
+					cfg.authorization,
 				),
 				authenticator,
-				cfg.auth.Authentication.Token.Audiences,
+				cfg.authentication.Token.Audiences,
 			),
 			cfg.ignorePaths,
 		),

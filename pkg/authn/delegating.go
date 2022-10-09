@@ -39,7 +39,7 @@ var (
 )
 
 // NewDelegatingAuthenticator creates an authenticator compatible with the kubelet's needs
-func NewDelegatingAuthenticator(client authenticationclient.AuthenticationV1Interface, authn *AuthnConfig) (*DelegatingAuthenticator, error) {
+func NewDelegatingAuthenticator(client authenticationclient.AuthenticationV1Interface, authn *Config) (*DelegatingAuthenticator, error) {
 	if client == nil {
 		return nil, errors.New("tokenAccessReview client not provided, cannot use webhook authentication")
 	}

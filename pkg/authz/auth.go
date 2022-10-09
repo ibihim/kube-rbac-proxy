@@ -17,15 +17,21 @@ limitations under the License.
 package authz
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"html/template"
+	"net/http"
+	"net/textproto"
 	"time"
 
+	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	"k8s.io/apiserver/pkg/authorization/authorizerfactory"
 	"k8s.io/apiserver/pkg/server/options"
 	authorizationclient "k8s.io/client-go/kubernetes/typed/authorization/v1"
+	"k8s.io/klog/v2"
 )
 
 // Config holds configuration enabling request authorization
@@ -34,6 +40,107 @@ type Config struct {
 	ResourceAttributes     *ResourceAttributes          `json:"resourceAttributes,omitempty"`
 	ResourceAttributesFile string                       `json:"-"`
 	Static                 []StaticAuthorizationConfig  `json:"static,omitempty"`
+}
+
+// GetRequestAttributes populates authorizer attributes for the requests to kube-rbac-proxy.
+func (c Config) GetRequestAttributes(u user.Info, r *http.Request) []authorizer.Attributes {
+	apiVerb := "*"
+	switch r.Method {
+	case "POST":
+		apiVerb = "create"
+	case "GET":
+		apiVerb = "get"
+	case "PUT":
+		apiVerb = "update"
+	case "PATCH":
+		apiVerb = "patch"
+	case "DELETE":
+		apiVerb = "delete"
+	}
+
+	var allAttrs []authorizer.Attributes
+
+	defer func() {
+		for attrs := range allAttrs {
+			klog.V(5).Infof("kube-rbac-proxy request attributes: attrs=%#+v", attrs)
+		}
+	}()
+
+	if c.ResourceAttributes == nil {
+		// Default attributes mirror the API attributes that would allow this access to kube-rbac-proxy
+		allAttrs := append(allAttrs, authorizer.AttributesRecord{
+			User:            u,
+			Verb:            apiVerb,
+			Namespace:       "",
+			APIGroup:        "",
+			APIVersion:      "",
+			Resource:        "",
+			Subresource:     "",
+			Name:            "",
+			ResourceRequest: false,
+			Path:            r.URL.Path,
+		})
+		return allAttrs
+	}
+
+	if c.Rewrites == nil {
+		allAttrs := append(allAttrs, authorizer.AttributesRecord{
+			User:            u,
+			Verb:            apiVerb,
+			Namespace:       c.ResourceAttributes.Namespace,
+			APIGroup:        c.ResourceAttributes.APIGroup,
+			APIVersion:      c.ResourceAttributes.APIVersion,
+			Resource:        c.ResourceAttributes.Resource,
+			Subresource:     c.ResourceAttributes.Subresource,
+			Name:            c.ResourceAttributes.Name,
+			ResourceRequest: true,
+		})
+		return allAttrs
+	}
+
+	params := []string{}
+	if c.Rewrites.ByQueryParameter != nil && c.Rewrites.ByQueryParameter.Name != "" {
+		if ps, ok := r.URL.Query()[c.Rewrites.ByQueryParameter.Name]; ok {
+			params = append(params, ps...)
+		}
+	}
+	if c.Rewrites.ByHTTPHeader != nil && c.Rewrites.ByHTTPHeader.Name != "" {
+		mimeHeader := textproto.MIMEHeader(r.Header)
+		mimeKey := textproto.CanonicalMIMEHeaderKey(c.Rewrites.ByHTTPHeader.Name)
+		if ps, ok := mimeHeader[mimeKey]; ok {
+			params = append(params, ps...)
+		}
+	}
+
+	if len(params) == 0 {
+		return allAttrs
+	}
+
+	for _, param := range params {
+		attrs := authorizer.AttributesRecord{
+			User:            u,
+			Verb:            apiVerb,
+			Namespace:       templateWithValue(c.ResourceAttributes.Namespace, param),
+			APIGroup:        templateWithValue(c.ResourceAttributes.APIGroup, param),
+			APIVersion:      templateWithValue(c.ResourceAttributes.APIVersion, param),
+			Resource:        templateWithValue(c.ResourceAttributes.Resource, param),
+			Subresource:     templateWithValue(c.ResourceAttributes.Subresource, param),
+			Name:            templateWithValue(c.ResourceAttributes.Name, param),
+			ResourceRequest: true,
+		}
+		allAttrs = append(allAttrs, attrs)
+	}
+	return allAttrs
+}
+
+func templateWithValue(templateString, value string) string {
+	tmpl, _ := template.New("valueTemplate").Parse(templateString)
+	out := bytes.NewBuffer(nil)
+	err := tmpl.Execute(out, struct{ Value string }{Value: value})
+	if err != nil {
+		return ""
+	}
+	return out.String()
 }
 
 // SubjectAccessReviewRewrites describes how SubjectAccessReview may be
