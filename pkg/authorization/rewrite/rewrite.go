@@ -30,6 +30,8 @@ import (
 
 var _ authorizer.Authorizer = &rewritingAuthorizer{}
 
+// iota is reset to 0, which is a suboptimal default value, it is better to used
+// a custom type to avoid conflict.
 const rewriterParams = iota
 
 type RewriteAttributesConfig struct {
@@ -67,6 +69,8 @@ type ResourceAttributes struct {
 	Name        string `json:"name,omitempty"`
 }
 
+// NewRewritingAuthorizer creates an authorizer for rewriting SubjectAccessReviews based on given config
+// and rewrite parameters in query or header.
 func NewRewritingAuthorizer(delegate authorizer.Authorizer, config *RewriteAttributesConfig) *rewritingAuthorizer {
 	rewriteConfig := config
 	if rewriteConfig == nil {
@@ -122,6 +126,9 @@ func (n *rewritingAuthorizer) Authorize(ctx context.Context, attrs authorizer.At
 		nil
 }
 
+// getKubeRBACProxyAuthzAttributes returns the attributes that kube-rbac-proxy will use to authorize the request.
+// The attributes are derived from the original request attributes and the configuration of rewrite parameters and
+// resource attributes (templates) from the config.
 func (n *rewritingAuthorizer) getKubeRBACProxyAuthzAttributes(ctx context.Context, origAttrs authorizer.Attributes) []authorizer.Attributes {
 	u := origAttrs.GetUser()
 	apiVerb := origAttrs.GetVerb()
@@ -178,19 +185,28 @@ func (n *rewritingAuthorizer) getKubeRBACProxyAuthzAttributes(ctx context.Contex
 	return attrs
 }
 
+// templateWithValue returns a string with the value substituted into the template.
 func templateWithValue(templateString, value string) string {
-	tmpl, _ := template.New("valueTemplate").Parse(templateString)
-	out := bytes.NewBuffer(nil)
-	err := tmpl.Execute(out, struct{ Value string }{Value: value})
+	tmpl, err := template.New("valueTemplate").Parse(templateString)
 	if err != nil {
+		panic(err)
+	}
+
+	out := bytes.NewBuffer(nil)
+	if err := tmpl.Execute(out, struct{ Value string }{Value: value}); err != nil {
 		return ""
 	}
+
 	return out.String()
 }
 
+// WithKubeRBACProxyParamsHandler is a middleware that adds the rewrite parameters to the context.
 func WithKubeRBACProxyParamsHandler(handler http.Handler, config *RewriteAttributesConfig) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r = r.WithContext(WithKubeRBACProxyParams(r.Context(), requestToParams(config, r)))
+		if params := requestToParams(config, r); len(params) != 0 {
+			r = r.WithContext(WithKubeRBACProxyParams(r.Context(), requestToParams(config, r)))
+		}
+
 		handler.ServeHTTP(w, r)
 	})
 }
@@ -206,7 +222,9 @@ func requestToParams(config *RewriteAttributesConfig, req *http.Request) []strin
 			params = append(params, ps...)
 		}
 	}
+
 	if config.Rewrites.ByHTTPHeader != nil && config.Rewrites.ByHTTPHeader.Name != "" {
+		// Get all headers that match the name. req.Header.Get returns only the first match.
 		mimeHeader := textproto.MIMEHeader(req.Header)
 		mimeKey := textproto.CanonicalMIMEHeaderKey(config.Rewrites.ByHTTPHeader.Name)
 		if ps, ok := mimeHeader[mimeKey]; ok {
@@ -216,10 +234,12 @@ func requestToParams(config *RewriteAttributesConfig, req *http.Request) []strin
 	return params
 }
 
+// WithKubeRBACProxyParams adds the rewrite parameters to the context.
 func WithKubeRBACProxyParams(ctx context.Context, params []string) context.Context {
 	return request.WithValue(ctx, rewriterParams, params)
 }
 
+// GetKubeRBACProxyParams returns the rewrite parameters from the context.
 func GetKubeRBACProxyParams(ctx context.Context) []string {
 	params, ok := ctx.Value(rewriterParams).([]string)
 	if !ok {

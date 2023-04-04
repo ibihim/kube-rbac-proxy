@@ -32,9 +32,16 @@ type pathAuthorizer struct {
 	pathPatterns []string
 }
 
+var noopAuthorizer = authorizer.AuthorizerFunc(
+	func(context.Context, authorizer.Attributes) (authorizer.Decision, string, error) {
+		return authorizer.DecisionNoOpinion, "", nil
+	},
+)
+
 func newPathAuthorizer(onMatch, onNoMatch authorizer.Decision, inputPaths []string) *pathAuthorizer {
 	var patterns []string
 	paths := sets.NewString() // faster than trying to match every pattern every time
+
 	for _, p := range inputPaths {
 		p = strings.TrimPrefix(p, "/")
 		if len(p) == 0 {
@@ -42,11 +49,13 @@ func newPathAuthorizer(onMatch, onNoMatch authorizer.Decision, inputPaths []stri
 			paths.Insert(p)
 			continue
 		}
+
 		if strings.ContainsRune(p, '*') {
 			patterns = append(patterns, p)
-		} else {
-			paths.Insert(p)
+			continue
 		}
+
+		paths.Insert(p)
 	}
 
 	return &pathAuthorizer{
@@ -64,9 +73,11 @@ func (a *pathAuthorizer) Authorize(ctx context.Context, attr authorizer.Attribut
 	}
 
 	for _, pattern := range a.pathPatterns {
-		if found, err := path.Match(pattern, pth); err != nil {
+		found, err := path.Match(pattern, pth)
+		if err != nil {
 			return authorizer.DecisionNoOpinion, "Error", err
-		} else if found {
+		}
+		if found {
 			return a.matchDecision, "", nil
 		}
 	}
@@ -74,15 +85,16 @@ func (a *pathAuthorizer) Authorize(ctx context.Context, attr authorizer.Attribut
 	return a.noMatchDecision, "", nil
 }
 
+// NewAllowPathAuthorizer denies access to any path not in the allowed paths list.
 func NewAllowPathAuthorizer(allowPaths []string) authorizer.Authorizer {
 	if len(allowPaths) == 0 {
-		return authorizer.AuthorizerFunc(func(context.Context, authorizer.Attributes) (authorizer.Decision, string, error) {
-			return authorizer.DecisionNoOpinion, "", nil
-		})
+		return noopAuthorizer
 	}
+
 	return newPathAuthorizer(authorizer.DecisionNoOpinion, authorizer.DecisionDeny, allowPaths)
 }
 
+// NewAlwaysAllowPathAuthorizer allows access to any path in the allowed paths list.
 func NewAlwaysAllowPathAuthorizer(alwaysAllowPaths []string) authorizer.Authorizer {
 	return newPathAuthorizer(authorizer.DecisionAllow, authorizer.DecisionNoOpinion, alwaysAllowPaths)
 }

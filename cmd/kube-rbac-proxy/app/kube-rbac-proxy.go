@@ -51,10 +51,10 @@ import (
 	"github.com/brancz/kube-rbac-proxy/cmd/kube-rbac-proxy/app/options"
 	"github.com/brancz/kube-rbac-proxy/pkg/authn"
 	"github.com/brancz/kube-rbac-proxy/pkg/authn/identityheaders"
+	"github.com/brancz/kube-rbac-proxy/pkg/authorization"
 	"github.com/brancz/kube-rbac-proxy/pkg/authorization/path"
 	"github.com/brancz/kube-rbac-proxy/pkg/authorization/rewrite"
 	"github.com/brancz/kube-rbac-proxy/pkg/authorization/static"
-	"github.com/brancz/kube-rbac-proxy/pkg/filters"
 	"github.com/brancz/kube-rbac-proxy/pkg/server"
 )
 
@@ -214,7 +214,7 @@ func Run(opts *completedProxyRunOptions) error {
 
 	handler := identityheaders.WithAuthHeaders(proxy, cfg.KubeRBACProxyInfo.UpstreamHeaders)
 	handler = kubefilters.WithAuthorization(handler, authz, scheme.Codecs)
-	handler = kubefilters.WithAuthentication(handler, authenticator, http.HandlerFunc(filters.UnauthorizedHandler), cfg.DelegatingAuthentication.APIAudiences)
+	handler = kubefilters.WithAuthentication(handler, authenticator, http.HandlerFunc(authorization.UnauthorizedHandler), cfg.DelegatingAuthentication.APIAudiences)
 	handler = kubefilters.WithRequestInfo(handler, &request.RequestInfoFactory{})
 	handler = rewrite.WithKubeRBACProxyParamsHandler(handler, cfg.KubeRBACProxyInfo.Authorization.RewriteAttributesConfig)
 

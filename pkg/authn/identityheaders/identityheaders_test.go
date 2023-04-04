@@ -33,7 +33,7 @@ import (
 	"k8s.io/kubectl/pkg/scheme"
 
 	"github.com/brancz/kube-rbac-proxy/pkg/authn/identityheaders"
-	"github.com/brancz/kube-rbac-proxy/pkg/filters"
+	"github.com/brancz/kube-rbac-proxy/pkg/authorization"
 )
 
 func TestWithAuthHeaders(t *testing.T) {
@@ -150,7 +150,7 @@ func TestProxyWithOIDCSupport(t *testing.T) {
 			handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 			handler = identityheaders.WithAuthHeaders(handler, cfg)
 			handler = kubefilters.WithAuthorization(handler, v.authorizer, scheme.Codecs)
-			handler = kubefilters.WithAuthentication(handler, authenticator, http.HandlerFunc(filters.UnauthorizedHandler), []string{})
+			handler = kubefilters.WithAuthentication(handler, authenticator, http.HandlerFunc(authorization.UnauthorizedHandler), []string{})
 			handler = kubefilters.WithRequestInfo(handler, &request.RequestInfoFactory{})
 
 			handler.ServeHTTP(w, v.req)

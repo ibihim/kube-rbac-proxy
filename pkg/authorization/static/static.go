@@ -58,7 +58,7 @@ func NewStaticAuthorizer(config []StaticAuthorizationConfig) (*staticAuthorizer,
 
 func (saConfig StaticAuthorizationConfig) Matches(a authorizer.Attributes) bool {
 	isAllowed := func(staticConf string, requestVal string) bool {
-		if staticConf == "" {
+		if staticConf == "" { // a star check would be better!
 			return true
 		} else {
 			return staticConf == requestVal
@@ -70,7 +70,7 @@ func (saConfig StaticAuthorizationConfig) Matches(a authorizer.Attributes) bool 
 		userName = a.GetUser().GetName()
 	}
 
-	if isAllowed(saConfig.User.Name, userName) &&
+	return isAllowed(saConfig.User.Name, userName) &&
 		isAllowed(saConfig.Verb, a.GetVerb()) &&
 		isAllowed(saConfig.Namespace, a.GetNamespace()) &&
 		isAllowed(saConfig.APIGroup, a.GetAPIGroup()) &&
@@ -78,10 +78,7 @@ func (saConfig StaticAuthorizationConfig) Matches(a authorizer.Attributes) bool 
 		isAllowed(saConfig.Subresource, a.GetSubresource()) &&
 		isAllowed(saConfig.Name, a.GetName()) &&
 		isAllowed(saConfig.Path, a.GetPath()) &&
-		saConfig.ResourceRequest == a.IsResourceRequest() {
-		return true
-	}
-	return false
+		saConfig.ResourceRequest == a.IsResourceRequest()
 }
 
 func (sa staticAuthorizer) Authorize(ctx context.Context, a authorizer.Attributes) (authorized authorizer.Decision, reason string, err error) {
