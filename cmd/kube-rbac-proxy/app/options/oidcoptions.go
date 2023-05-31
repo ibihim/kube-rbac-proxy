@@ -38,11 +38,6 @@ func (o *OIDCOptions) AddFlags(flagset *pflag.FlagSet) {
 
 }
 
-func (o *OIDCOptions) Validate() []error {
-	var errs []error
-	return errs
-}
-
 func (o *OIDCOptions) ApplyTo(c *server.KubeRBACProxyInfo) error {
 	c.OIDC = o.OIDCConfig
 	return nil
