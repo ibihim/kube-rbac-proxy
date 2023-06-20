@@ -124,35 +124,7 @@ func (n *rewritingAuthorizer) Authorize(ctx context.Context, attrs authorizer.At
 func (n *rewritingAuthorizer) getKubeRBACProxyAuthzAttributes(ctx context.Context, origAttrs authorizer.Attributes) []authorizer.Attributes {
 	u := origAttrs.GetUser()
 	apiVerb := origAttrs.GetVerb()
-	path := origAttrs.GetPath()
-
 	attrs := []authorizer.Attributes{}
-	if n.config.ResourceAttributes == nil {
-		// Default attributes mirror the API attributes that would allow this access to kube-rbac-proxy
-		return append(attrs,
-			authorizer.AttributesRecord{
-				User:            u,
-				Verb:            apiVerb,
-				ResourceRequest: false,
-				Path:            path,
-			})
-	}
-
-	if n.config.Rewrites == nil {
-		return append(attrs,
-			authorizer.AttributesRecord{
-				User:            u,
-				Verb:            apiVerb,
-				Namespace:       n.config.ResourceAttributes.Namespace,
-				APIGroup:        n.config.ResourceAttributes.APIGroup,
-				APIVersion:      n.config.ResourceAttributes.APIVersion,
-				Resource:        n.config.ResourceAttributes.Resource,
-				Subresource:     n.config.ResourceAttributes.Subresource,
-				Name:            n.config.ResourceAttributes.Name,
-				ResourceRequest: true,
-			})
-
-	}
 
 	params := GetKubeRBACProxyParams(ctx)
 	if len(params) == 0 {
