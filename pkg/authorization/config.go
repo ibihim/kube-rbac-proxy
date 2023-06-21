@@ -23,6 +23,6 @@ import (
 
 // Config holds configuration enabling request authorization
 type AuthzConfig struct {
-	*rewrite.RewriteAttributesConfig `json:",inline"`
-	Static                           []static.StaticAuthorizationConfig `json:"static,omitempty"`
+	rewrite.RewriteAttributesConfig `json:",inline"`
+	Static                          []static.StaticAuthorizationConfig `json:"static,omitempty"`
 }

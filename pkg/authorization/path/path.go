@@ -74,6 +74,8 @@ func (a *pathAuthorizer) Authorize(ctx context.Context, attr authorizer.Attribut
 	return a.noMatchDecision, "", nil
 }
 
+// NewAllowPathAuthorizer returns an authorizer that has no opinion to requests
+// to the given paths and it denies all other requests.
 func NewAllowPathAuthorizer(allowPaths []string) authorizer.Authorizer {
 	if len(allowPaths) == 0 {
 		return authorizer.AuthorizerFunc(func(context.Context, authorizer.Attributes) (authorizer.Decision, string, error) {
@@ -83,6 +85,8 @@ func NewAllowPathAuthorizer(allowPaths []string) authorizer.Authorizer {
 	return newPathAuthorizer(authorizer.DecisionNoOpinion, authorizer.DecisionDeny, allowPaths)
 }
 
+// NewAlwaysAllowPathAuthorizer returns an authorizer that allows all requests
+// to the given paths and it has no opinion on all other requests.
 func NewAlwaysAllowPathAuthorizer(alwaysAllowPaths []string) authorizer.Authorizer {
 	return newPathAuthorizer(authorizer.DecisionAllow, authorizer.DecisionNoOpinion, alwaysAllowPaths)
 }

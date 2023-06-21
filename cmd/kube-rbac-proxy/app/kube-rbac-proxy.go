@@ -34,8 +34,6 @@ import (
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apiserver/pkg/authentication/authenticator"
-	"k8s.io/apiserver/pkg/authorization/authorizer"
-	"k8s.io/apiserver/pkg/authorization/union"
 	kubefilters "k8s.io/apiserver/pkg/endpoints/filters"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	serverconfig "k8s.io/apiserver/pkg/server"
@@ -51,9 +49,8 @@ import (
 	"github.com/brancz/kube-rbac-proxy/cmd/kube-rbac-proxy/app/options"
 	"github.com/brancz/kube-rbac-proxy/pkg/authn"
 	"github.com/brancz/kube-rbac-proxy/pkg/authn/identityheaders"
-	"github.com/brancz/kube-rbac-proxy/pkg/authorization/path"
+	"github.com/brancz/kube-rbac-proxy/pkg/authorization"
 	"github.com/brancz/kube-rbac-proxy/pkg/authorization/rewrite"
-	"github.com/brancz/kube-rbac-proxy/pkg/authorization/static"
 	"github.com/brancz/kube-rbac-proxy/pkg/filters"
 	"github.com/brancz/kube-rbac-proxy/pkg/server"
 )
@@ -181,7 +178,12 @@ func Run(opts *completedProxyRunOptions) error {
 		authenticator = cfg.DelegatingAuthentication.Authenticator
 	}
 
-	authz, err := setupAuthorizer(cfg.KubeRBACProxyInfo, cfg.DelegatingAuthorization)
+	authz, err := authorization.SetupAuthorizer(
+		cfg.KubeRBACProxyInfo.Authorization,
+		cfg.KubeRBACProxyInfo.AllowPaths,
+		cfg.KubeRBACProxyInfo.IgnorePaths,
+		cfg.DelegatingAuthorization,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to setup an authorizer: %v", err)
 	}
@@ -208,7 +210,10 @@ func Run(opts *completedProxyRunOptions) error {
 	handler = kubefilters.WithAuthorization(handler, authz, scheme.Codecs)
 	handler = kubefilters.WithAuthentication(handler, authenticator, http.HandlerFunc(filters.UnauthorizedHandler), cfg.DelegatingAuthentication.APIAudiences)
 	handler = kubefilters.WithRequestInfo(handler, &request.RequestInfoFactory{})
-	handler = rewrite.WithKubeRBACProxyParamsHandler(handler, cfg.KubeRBACProxyInfo.Authorization.RewriteAttributesConfig)
+	handler = rewrite.WithKubeRBACProxyParamsHandler(
+		handler,
+		&cfg.KubeRBACProxyInfo.Authorization.RewriteAttributesConfig,
+	)
 
 	mux := http.NewServeMux()
 	mux.Handle("/", handler)
@@ -301,29 +306,4 @@ func secureServerRunner(
 	}
 
 	return runner, interrupter
-}
-
-func setupAuthorizer(krbInfo *server.KubeRBACProxyInfo, delegatedAuthz *serverconfig.AuthorizationInfo) (authorizer.Authorizer, error) {
-	staticAuthorizer, err := static.NewStaticAuthorizer(krbInfo.Authorization.Static)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create static authorizer: %w", err)
-	}
-
-	var authz authorizer.Authorizer = rewrite.NewRewritingAuthorizer(
-		union.New(
-			staticAuthorizer,
-			delegatedAuthz.Authorizer,
-		),
-		krbInfo.Authorization.RewriteAttributesConfig,
-	)
-
-	if allowPaths := krbInfo.AllowPaths; len(allowPaths) > 0 {
-		authz = union.New(path.NewAllowPathAuthorizer(allowPaths), authz)
-	}
-
-	if ignorePaths := krbInfo.IgnorePaths; len(ignorePaths) > 0 {
-		authz = union.New(path.NewAlwaysAllowPathAuthorizer(ignorePaths), authz)
-	}
-
-	return authz, nil
 }
