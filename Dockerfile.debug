@@ -1,0 +1,30 @@
+ARG GOARCH=amd64
+ARG GOOS=linux
+
+# Build stage
+FROM golang:1.21 AS builder
+
+WORKDIR /workspace
+
+RUN go install github.com/go-delve/delve/cmd/dlv@v1.21
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=${GOOS} GOARCH=${GOARCH} go build -o kube-rbac-proxy ./cmd/kube-rbac-proxy
+
+# Run stage
+FROM ubuntu:jammy
+# FROM ubuntu
+
+# Copy the binary and dlv from the builder stage
+COPY --from=builder /workspace/kube-rbac-proxy /usr/local/bin/kube-rbac-proxy
+COPY --from=builder /go/bin/dlv /usr/local/bin/dlv
+
+EXPOSE 8080 9090
+# USER 65532:65532
+
+# Modify the entrypoint to start the application with dlv
+ENTRYPOINT ["/usr/local/bin/dlv", "--listen=:9090", "--headless=true", "--api-version=2", "exec", "/usr/local/bin/kube-rbac-proxy", "--"]
