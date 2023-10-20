@@ -418,10 +418,10 @@ func main() {
 		if cfg.insecureListenAddress != "" {
 			srv := &http.Server{}
 			if cfg.HTTP2Disable {
-				srv.Handler = h2c.NewHandler(mux, http2Options)
-			} else {
 				srv.Handler = mux
 				srv.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler))
+			} else {
+				srv.Handler = h2c.NewHandler(mux, http2Options)
 			}
 
 			l, err := net.Listen("tcp", cfg.insecureListenAddress)
