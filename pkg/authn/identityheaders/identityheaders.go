@@ -18,7 +18,6 @@ package identityheaders
 
 import (
 	"net/http"
-	"strings"
 
 	"k8s.io/apiserver/pkg/endpoints/request"
 )
@@ -45,11 +44,19 @@ func WithAuthHeaders(handler http.Handler, cfg *AuthnHeaderConfig) http.Handler 
 
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		u, ok := request.UserFrom(req.Context())
-		if ok {
-			// Seemingly well-known headers to tell the upstream about user's identity
-			// so that the upstream can achieve the original goal of delegating RBAC authn/authz to kube-rbac-proxy
-			req.Header.Set(cfg.UserFieldName, u.GetName())
-			req.Header.Set(cfg.GroupsFieldName, strings.Join(u.GetGroups(), cfg.GroupSeparator))
+		if !ok {
+			http.Error(w, "missing user in context", http.StatusInternalServerError)
+			return
+		}
+
+		// Seemingly well-known headers to tell the upstream about user's identity
+		// so that the upstream can achieve the original goal of delegating RBAC authn/authz to kube-rbac-proxy
+		req.Header.Set(cfg.UserFieldName, u.GetName())
+
+		// Delete the header fields if they already exist, to avoid impersonation attacks
+		req.Header.Del(cfg.GroupsFieldName)
+		for _, group := range u.GetGroups() {
+			req.Header.Add(cfg.GroupsFieldName, group)
 		}
 
 		handler.ServeHTTP(w, req)
