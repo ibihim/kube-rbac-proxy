@@ -18,16 +18,13 @@ package app
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
-	"net"
 	"net/http"
 	"net/http/httputil"
 	"os"
 	"time"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/net/http2"
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	waitgroup "k8s.io/apimachinery/pkg/util/waitgroup"
@@ -207,21 +204,6 @@ func Run(cfg *server.KubeRBACProxyConfig) error {
 
 	proxy := httputil.NewSingleHostReverseProxy(cfg.KubeRBACProxyInfo.UpstreamURL)
 	proxy.Transport = cfg.KubeRBACProxyInfo.UpstreamTransport
-
-	if cfg.KubeRBACProxyInfo.UpstreamForceH2C {
-		// Force http/2 for connections to the upstream i.e. do not start with HTTP1.1 UPGRADE req to
-		// initialize http/2 session.
-		// See https://github.com/golang/go/issues/14141#issuecomment-219212895 for more context
-		proxy.Transport = &http2.Transport{
-			// Allow http schema. This doesn't automatically disable TLS
-			AllowHTTP: true,
-			// Do disable TLS.
-			// In combination with the schema check above. We could enforce h2c against the upstream server
-			DialTLS: func(netw, addr string, cfg *tls.Config) (net.Conn, error) {
-				return net.Dial(netw, addr)
-			},
-		}
-	}
 
 	handler := identityheaders.WithAuthHeaders(proxy, cfg.KubeRBACProxyInfo.UpstreamHeaders)
 	handler = kubefilters.WithAuthorization(handler, authz, scheme.Codecs)

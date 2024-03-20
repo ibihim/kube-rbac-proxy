@@ -81,7 +81,7 @@ func TestInitTransportWithClientCertAuth(t *testing.T) {
 	defer tlsServer.Close()
 
 	i := KubeRBACProxyInfo{}
-	if err := i.SetUpstreamTransport(serverCertPath, clientCertPath, clientKeyPath); err != nil {
+	if err := i.SetUpstreamTransport(false, serverCertPath, clientCertPath, clientKeyPath); err != nil {
 		t.Errorf("want err to be nil, but got %v", err)
 		return
 	}
@@ -164,7 +164,7 @@ func TestKubeRBACProxyInfo_SetUpstreamTransport(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			i := &KubeRBACProxyInfo{}
-			err := i.SetUpstreamTransport(tt.upstreamCAPath, tt.upstreamClientCertPath, tt.upstreamClientKeyPath)
+			err := i.SetUpstreamTransport(false, tt.upstreamCAPath, tt.upstreamClientCertPath, tt.upstreamClientKeyPath)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("KubeRBACProxyInfo.SetUpstreamTransport() error = %v, wantErr %v", err, tt.wantErr)

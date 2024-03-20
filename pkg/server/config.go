@@ -21,10 +21,12 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 
+	"golang.org/x/net/http2"
 	serverconfig "k8s.io/apiserver/pkg/server"
 
 	"github.com/brancz/kube-rbac-proxy/pkg/authn"
@@ -78,7 +80,21 @@ func NewConfig() *KubeRBACProxyConfig {
 // SetUpstreamTransport configures the transport to use when talking to upstream
 // with a CA and/or client cert/key pair.
 // An empty string on `upstreamCAPath` means system cert pool will be used.
-func (i *KubeRBACProxyInfo) SetUpstreamTransport(upstreamCAPath, upstreamClientCertPath, upstreamClientKeyPath string) error {
+func (i *KubeRBACProxyInfo) SetUpstreamTransport(isH2C bool, upstreamCAPath, upstreamClientCertPath, upstreamClientKeyPath string) error {
+	if isH2C {
+		i.UpstreamTransport = &http2.Transport{
+			// Allow http schema. This doesn't automatically disable TLS
+			AllowHTTP: true,
+			// Do disable TLS.
+			// In combination with the schema check above. We could enforce h2c against the upstream server
+			DialTLS: func(netw, addr string, cfg *tls.Config) (net.Conn, error) {
+				return net.Dial(netw, addr)
+			},
+		}
+
+		return nil
+	}
+
 	transport := (http.DefaultTransport.(*http.Transport)).Clone()
 
 	if len(upstreamCAPath) > 0 {

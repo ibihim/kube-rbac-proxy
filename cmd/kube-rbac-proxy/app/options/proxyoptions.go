@@ -103,6 +103,11 @@ func (o *ProxyOptions) Validate() []error {
 		}
 	}
 
+	hasTLSConfigured := o.UpstreamCAFile != "" || o.UpstreamClientCertFile != "" || o.UpstreamClientKeyFile != ""
+	if o.UpstreamForceH2C && hasTLSConfigured {
+		errs = append(errs, fmt.Errorf("failed due to conflicting flags: h2c is not encrypted, so cannot use TLS flags"))
+	}
+
 	return errs
 }
 
@@ -114,7 +119,12 @@ func (o *ProxyOptions) ApplyTo(c *server.KubeRBACProxyInfo, a *serverconfig.Auth
 		return fmt.Errorf("failed to parse upstream URL: %w", err)
 	}
 
-	if err := c.SetUpstreamTransport(o.UpstreamCAFile, o.UpstreamClientCertFile, o.UpstreamClientKeyFile); err != nil {
+	if err := c.SetUpstreamTransport(
+		o.UpstreamForceH2C,
+		o.UpstreamCAFile,
+		o.UpstreamClientCertFile,
+		o.UpstreamClientKeyFile,
+	); err != nil {
 		return fmt.Errorf("failed to setup transport for upstream: %w", err)
 	}
 
