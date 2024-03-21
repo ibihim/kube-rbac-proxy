@@ -51,7 +51,8 @@ type ProxyOptions struct {
 
 	ProxyEndpointsPort int
 
-	TokenAudiences []string
+	TokenAudiences     []string
+	EnableLegacyTokens bool
 }
 
 func (o *ProxyOptions) AddFlags(flagset *pflag.FlagSet) {
@@ -73,6 +74,7 @@ func (o *ProxyOptions) AddFlags(flagset *pflag.FlagSet) {
 	flagset.StringVar(&o.UpstreamHeader.GroupSeparator, "auth-header-groups-field-separator", "|", "The separator string used for concatenating multiple group names in a groups header field's value")
 
 	flagset.StringSliceVar(&o.TokenAudiences, "auth-token-audiences", []string{}, "Comma-separated list of token audiences to accept. By default a token does not have to have any specific audience. It is recommended to set a specific audience.")
+	flagset.BoolVar(&o.EnableLegacyTokens, "enable-legacy-tokens", false, "Enable legacy tokens, which are tokens that do not have an audience claim. This is not recommended and should only be used for backwards compatibility.")
 
 	// proxy endpoints flag
 	flagset.IntVar(&o.ProxyEndpointsPort, "proxy-endpoints-port", 0, "The port to securely serve proxy-specific endpoints (such as '/healthz'). Uses the host from the '--secure-listen-address'.")
@@ -106,6 +108,10 @@ func (o *ProxyOptions) Validate() []error {
 	hasTLSConfigured := o.UpstreamCAFile != "" || o.UpstreamClientCertFile != "" || o.UpstreamClientKeyFile != ""
 	if o.UpstreamForceH2C && hasTLSConfigured {
 		errs = append(errs, fmt.Errorf("failed due to conflicting flags: h2c is not encrypted, so cannot use TLS flags"))
+	}
+
+	if !o.EnableLegacyTokens && len(o.TokenAudiences) == 0 {
+		errs = append(errs, fmt.Errorf("failed as audiences are required when legacy tokens are disabled"))
 	}
 
 	return errs
