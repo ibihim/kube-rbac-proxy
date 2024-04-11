@@ -14,6 +14,35 @@ spec:
         app: kube-rbac-proxy
     spec:
       serviceAccountName: kube-rbac-proxy
+      initContainers:
+        - name: cert-generator
+          image: alpine
+          command:
+            - sh
+            - -c
+            - |
+              apk add openssl
+              mkdir -p /etc/certs
+              
+              # Generate server key and self-signed certificate
+              openssl genrsa -out /etc/certs/server.key 4096
+              openssl req -new -x509 -sha256 -key /etc/certs/server.key -out /etc/certs/server.crt -days 36500 -subj "/CN=kube-rbac-proxy" -extensions req_ext -config <(echo "
+                [req]
+                distinguished_name=req_distinguished_name
+                x509_extensions=req_ext
+                [req_distinguished_name]
+                [req_ext]
+                subjectAltName=DNS:kube-rbac-proxy,DNS:localhost
+                keyUsage=digitalSignature,keyEncipherment
+                extendedKeyUsage=serverAuth
+              ")
+
+              # Set permissions so the kube-rbac-proxy can read the certs and key
+              chmod 644 /etc/certs/*.crt
+              chmod 644 /etc/certs/*.key
+          volumeMounts:
+            - name: cert-volume
+              mountPath: /etc/certs
       containers:
         - name: kube-rbac-proxy
           image: quay.io/brancz/kube-rbac-proxy:local
@@ -21,10 +50,19 @@ spec:
             - "--secure-listen-address=0.0.0.0:8443"
             - "--upstream=http://127.0.0.1:8081/"
             - "--v=10"
+            - "--tls-cert-file=/etc/certs/server.crt"
+            - "--tls-private-key-file=/etc/certs/server.key"
           ports:
             - containerPort: 8443
               name: https
+          volumeMounts:
+            - name: cert-volume
+              mountPath: /etc/certs
+              readOnly: true
         - name: prometheus-example-app
           image: quay.io/brancz/prometheus-example-app:v0.1.0
           args:
             - "--bind=127.0.0.1:8081"
+      volumes:
+        - name: cert-volume
+          emptyDir: {}
