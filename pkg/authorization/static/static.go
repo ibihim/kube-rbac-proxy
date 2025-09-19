@@ -28,20 +28,19 @@ import (
 // authorization.
 type StaticAuthorizationConfig struct {
 	User            UserConfig
-	Verb            string `json:"verb,omitempty"`
-	Namespace       string `json:"namespace,omitempty"`
-	APIGroup        string `json:"apiGroup,omitempty"`
-	Resource        string `json:"resource,omitempty"`
-	Subresource     string `json:"subresource,omitempty"`
-	Name            string `json:"name,omitempty"`
-	ResourceRequest bool   `json:"resourceRequest,omitempty"`
-	Path            string `json:"path,omitempty"`
+	Verb            string
+	Namespace       string
+	APIGroup        string
+	Resource        string
+	Subresource     string
+	Name            string
+	ResourceRequest bool
+	Path            string
 }
 
 type UserConfig struct {
-	Name     string   `json:"name,omitempty"`
-	Groups   []string `json:"groups,omitempty"`
-	GroupSet set.Set[string]
+	Name   string
+	Groups set.Set[string]
 }
 
 type staticAuthorizer struct {
@@ -51,10 +50,6 @@ type staticAuthorizer struct {
 // NewStaticAuthorizer creates an authorizer for static SubjectAccessReviews
 func NewStaticAuthorizer(config []StaticAuthorizationConfig) (*staticAuthorizer, error) {
 	for c := range config {
-		if config[c].User.Groups != nil {
-			config[c].User.GroupSet = set.New(config[c].User.Groups...)
-		}
-
 		if config[c].ResourceRequest != (config[c].Path == "") {
 			return nil, fmt.Errorf("invalid configuration: resource requests must not include a path: %v", config)
 		}
@@ -70,11 +65,11 @@ func (saConfig StaticAuthorizationConfig) Matches(a authorizer.Attributes) bool 
 		return staticConf == requestVal
 	}
 	isGroupAllowed := func(requestGroups []string) bool {
-		if len(saConfig.User.GroupSet) == 0 {
+		if len(saConfig.User.Groups) == 0 {
 			return true
 		}
 		for _, group := range requestGroups {
-			if _, exists := saConfig.User.GroupSet[group]; exists {
+			if _, exists := saConfig.User.Groups[group]; exists {
 				return true
 			}
 		}

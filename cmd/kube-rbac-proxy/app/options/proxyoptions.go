@@ -30,10 +30,12 @@ import (
 
 	serverconfig "k8s.io/apiserver/pkg/server"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/set"
 
 	"github.com/brancz/kube-rbac-proxy/pkg/authn/identityheaders"
-	authz "github.com/brancz/kube-rbac-proxy/pkg/authorization"
+	"github.com/brancz/kube-rbac-proxy/pkg/authorization"
 	"github.com/brancz/kube-rbac-proxy/pkg/authorization/rewrite"
+	"github.com/brancz/kube-rbac-proxy/pkg/authorization/static"
 	"github.com/brancz/kube-rbac-proxy/pkg/server"
 )
 
@@ -134,10 +136,12 @@ func (o *ProxyOptions) ApplyTo(krpInfo *server.KubeRBACProxyInfo, authInfo *serv
 	}
 
 	if configFileName := o.ConfigFileName; len(configFileName) > 0 {
-		krpInfo.Authorization, err = parseAuthorizationConfigFile(configFileName)
+		authzOptions, err := NewAuthzOptions(configFileName)
 		if err != nil {
-			return fmt.Errorf("failed to read the config file: %w", err)
+			return err
 		}
+
+		authzOptions.ApplyTo(krpInfo)
 	}
 
 	serving.DisableHTTP2 = o.DisableHTTP2Serving
@@ -214,10 +218,64 @@ func validateLoopbackAddress(address string) error {
 }
 
 type configfile struct {
-	AuthorizationConfig *authz.AuthzConfig `json:"authorization,omitempty"`
+	AuthorizationOptions *AuthzOptions `json:"authorization,omitempty"`
 }
 
-func parseAuthorizationConfigFile(filePath string) (*authz.AuthzConfig, error) {
+type AuthzOptions struct {
+	*rewrite.RewriteAttributesConfig `json:",inline"`
+	Static                           []StaticAuthorizationOptions `json:"static,omitempty"`
+}
+
+func NewAuthzOptions(configFileName string) (*AuthzOptions, error) {
+	return parseAuthorizationConfigFile(configFileName)
+}
+
+func (a *AuthzOptions) ApplyTo(krpInfo *server.KubeRBACProxyInfo) error {
+	statics := make([]static.StaticAuthorizationConfig, 0, len(a.Static))
+	for _, s := range a.Static {
+		userConfig := static.UserConfig{
+			Name:   s.User.Name,
+			Groups: set.New[string](s.User.Groups...),
+		}
+		statics = append(statics, static.StaticAuthorizationConfig{
+			User:            userConfig,
+			Verb:            s.Verb,
+			Namespace:       s.Namespace,
+			APIGroup:        s.APIGroup,
+			Resource:        s.Resource,
+			Subresource:     s.Subresource,
+			Name:            s.Name,
+			ResourceRequest: s.ResourceRequest,
+			Path:            s.Path,
+		})
+	}
+
+	krpInfo.Authorization = &authorization.AuthzConfig{
+		RewriteAttributesConfig: a.RewriteAttributesConfig,
+		Static:                  statics,
+	}
+
+	return nil
+}
+
+type StaticAuthorizationOptions struct {
+	User            UserOptions
+	Verb            string `json:"verb,omitempty"`
+	Namespace       string `json:"namespace,omitempty"`
+	APIGroup        string `json:"apiGroup,omitempty"`
+	Resource        string `json:"resource,omitempty"`
+	Subresource     string `json:"subresource,omitempty"`
+	Name            string `json:"name,omitempty"`
+	ResourceRequest bool   `json:"resourceRequest,omitempty"`
+	Path            string `json:"path,omitempty"`
+}
+
+type UserOptions struct {
+	Name   string   `json:"name,omitempty"`
+	Groups []string `json:"groups,omitempty"`
+}
+
+func parseAuthorizationConfigFile(filePath string) (*AuthzOptions, error) {
 	klog.Infof("Reading config file: %s", filePath)
 	b, err := os.ReadFile(filePath)
 	if err != nil {
@@ -232,9 +290,9 @@ func parseAuthorizationConfigFile(filePath string) (*authz.AuthzConfig, error) {
 
 	// If RewriteAttributesConfig is not set, set it to an empty config.
 	// This is to avoid nil plenty of pointer dereference checks further down.
-	if configFile.AuthorizationConfig.RewriteAttributesConfig == nil {
-		configFile.AuthorizationConfig.RewriteAttributesConfig = &rewrite.RewriteAttributesConfig{}
+	if configFile.AuthorizationOptions.RewriteAttributesConfig == nil {
+		configFile.AuthorizationOptions.RewriteAttributesConfig = &rewrite.RewriteAttributesConfig{}
 	}
 
-	return configFile.AuthorizationConfig, nil
+	return configFile.AuthorizationOptions, nil
 }
