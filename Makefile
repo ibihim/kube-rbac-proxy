@@ -8,9 +8,9 @@ export GO111MODULE
 DBG ?=
 
 ifeq ($(DBG),1)
-GOLDFLAGS ?=
+DBG_GCFLAGS := all=-N -l
 else
-GOLDFLAGS ?= -s -w
+STRIP_LDFLAGS := -s -w
 endif
 
 PROGRAM_NAME?=kube-rbac-proxy
@@ -55,7 +55,7 @@ $(OUT_DIR)/$(PROGRAM_NAME)-%:
 	GOARCH=$(word 2,$(subst -, ,$(*:.exe=))) \
 	GOOS=$(word 1,$(subst -, ,$(*:.exe=))) \
 	CGO_ENABLED=0 \
-	go build --installsuffix cgo -ldflags="$(GOLDFLAGS) -X k8s.io/component-base/version.gitVersion=$(VERSION_SEMVER) -X k8s.io/component-base/version.gitCommit=$(shell git rev-parse HEAD) -X k8s.io/component-base/version/verflag.programName=$(PROGRAM_NAME)" -o $(OUT_DIR)/$(PROGRAM_NAME)-$* $(GITHUB_URL)/cmd/kube-rbac-proxy
+	go build --installsuffix cgo -gcflags="$(DBG_GCFLAGS)" -ldflags="$(GOLDFLAGS) $(STRIP_LDFLAGS) -X k8s.io/component-base/version.gitVersion=$(VERSION_SEMVER) -X k8s.io/component-base/version.gitCommit=$(shell git rev-parse HEAD) -X k8s.io/component-base/version/verflag.programName=$(PROGRAM_NAME)" -o $(OUT_DIR)/$(PROGRAM_NAME)-$* $(GITHUB_URL)/cmd/kube-rbac-proxy
 
 clean:
 	-rm -r $(OUT_DIR)
