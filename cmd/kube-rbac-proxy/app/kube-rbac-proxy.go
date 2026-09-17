@@ -430,10 +430,10 @@ func Run(cfg *completedProxyRunOptions) error {
 					// Transport.TLSNextProto (for clients) or Server.TLSNextProto
 					// (for servers) to a non-nil, empty map.
 					// https://pkg.go.dev/net/http
-					srv.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler))
+					proxyEndpointsSrv.TLSNextProto = make(map[string]func(*http.Server, *tls.Conn, http.Handler))
 					// For reference:
 					// https://github.com/kubernetes/kubernetes/blob/de054fbf9422d778568946de21a48c7330a6c1b7/staging/src/k8s.io/apiserver/pkg/server/secure_serving.go#L55-L59
-					srv.TLSConfig.NextProtos = []string{"http/1.1"}
+					proxyEndpointsSrv.TLSConfig.NextProtos = []string{"http/1.1"}
 				} else {
 					if err := http2.ConfigureServer(proxyEndpointsSrv, cfg.newHTTP2Server()); err != nil {
 						return fmt.Errorf("failed to configure http2 server: %w", err)
@@ -455,7 +455,7 @@ func Run(cfg *completedProxyRunOptions) error {
 					defer proxyListener.Close()
 
 					klog.Infof("Listening securely on %v for proxy endpoints", endpointsAddr)
-					tlsListener := tls.NewListener(proxyListener, srv.TLSConfig)
+					tlsListener := tls.NewListener(proxyListener, proxyEndpointsSrv.TLSConfig)
 					return proxyEndpointsSrv.Serve(tlsListener)
 				}, func(err error) {
 					if err := proxyEndpointsSrv.Shutdown(context.Background()); err != nil {
