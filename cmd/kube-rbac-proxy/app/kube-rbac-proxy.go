@@ -276,8 +276,8 @@ func Run(cfg *completedProxyRunOptions) error {
 			AllowHTTP: true,
 			// Do disable TLS.
 			// In combination with the schema check above. We could enforce h2c against the upstream server
-			DialTLS: func(netw, addr string, cfg *tls.Config) (net.Conn, error) {
-				return net.Dial(netw, addr)
+			DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
+				return newUpstreamDialer().DialContext(ctx, network, addr)
 			},
 		}
 	}
