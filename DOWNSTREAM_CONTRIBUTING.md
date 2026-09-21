@@ -194,12 +194,7 @@ Downstream syncs themselves land through dedicated merge branches (e.g.,
 
 ### Syncing from Upstream
 
-The Control Plane team periodically syncs changes from upstream (kube-rbac-proxy/kube-rbac-proxy). The process:
-
-1. **Upstream tracking**: Monitor upstream releases and relevant PRs
-2. **Cherry-pick or merge**: Bring in upstream changes, resolving conflicts with OpenShift-specific patches
-3. **Testing**: Run full test suite to ensure upstream changes work with OpenShift
-4. **Documentation**: Update CHANGELOG.md noting upstream version synced
+The Control Plane team periodically merges upstream (kube-rbac-proxy/kube-rbac-proxy) releases into this fork, following [DOWNSTREAM_UPSTREAM_MERGE.md](DOWNSTREAM_UPSTREAM_MERGE.md). Merge the release tag rather than cherry-picking its commits, and leave CHANGELOG.md as upstream wrote it.
 
 **For contributors**: If you're implementing a feature that would benefit upstream, consider:
 1. Submitting the change to upstream first (kube-rbac-proxy/kube-rbac-proxy)
