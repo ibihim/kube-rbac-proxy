@@ -132,7 +132,7 @@ Submit a PR against the master branch titled "\*: cut vx.y.z release ".
 Tag the new release via the following commands:
 
 ```bash
-tag="v$(< VERSION)"
+tag="$(< VERSION)"
 git tag -s "${tag}" -m "${tag}"
 git push origin "${tag}"
 ```
@@ -141,7 +141,7 @@ Optionally, you can use this handy `.gitconfig` alias.
 
 ```ini
 [alias]
-  tag-release = "!f() { tag=v${1:-$(cat VERSION)} ; git tag -s ${tag} -m ${tag} && git push origin ${tag}; }; f"
+  tag-release = "!f() { tag=${1:-$(cat VERSION)} ; git tag -s ${tag} -m ${tag} && git push origin ${tag}; }; f"
 ```
 
 Then release with `git tag-release`.
