@@ -256,10 +256,13 @@ func Run(cfg *completedProxyRunOptions) error {
 		return fmt.Errorf("failed to create static authorizer: %w", err)
 	}
 
-	authorizer := union.New(
-		staticAuthorizer,
-		sarAuthorizer,
+	authorizer, err := union.New(
+		union.NamedAuthorizer{AuthorizerName: "static", Authorizer: staticAuthorizer},
+		union.NamedAuthorizer{AuthorizerName: "sar", Authorizer: sarAuthorizer},
 	)
+	if err != nil {
+		return fmt.Errorf("failed to create union authorizer: %w", err)
+	}
 
 	upstreamTransport, err := initTransport(cfg.upstreamCABundle, cfg.tls.UpstreamClientCertFile, cfg.tls.UpstreamClientKeyFile)
 	if err != nil {
