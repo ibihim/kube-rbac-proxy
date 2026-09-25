@@ -174,7 +174,8 @@ When modifying these components:
 
 To bring a released upstream version into this fork, follow the runbook in
 [DOWNSTREAM_UPSTREAM_MERGE.md](DOWNSTREAM_UPSTREAM_MERGE.md) step by step.
-Respect its STOP conditions and never push or open the PR yourself.
+It ends with you opening a PR. Never comment `/lgtm`, `/approve` or
+`/verified`: humans decide.
 
 ## Kubernetes API Integration
 
